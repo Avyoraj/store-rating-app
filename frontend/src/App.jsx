@@ -4,8 +4,9 @@ import { HelmetProvider } from 'react-helmet-async';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './components/theme-provider';
 import ErrorBoundary from './components/ErrorBoundary';
-import { Navbar } from './components/layout/Navbar';
+import { Navbar } from './components/layout/navbar';
 import ProtectedRoute from './components/ProtectedRoute';
+
 
 // Import all migrated pages
 import HomePage from './pages/HomePage';
