@@ -1,187 +1,181 @@
-import React, { useState, useEffect } from 'react';
-import { Search, MapPin, SortAsc, SortDesc, ChevronRight } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import api from '../services/api';
-import { Button, Input, Card, LoadingSpinner } from '../components/UI';
-import StarRating from '../components/StarRating';
-import toast from 'react-hot-toast';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Input } from '../components/ui/input';
+import { Button } from '../components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { StoreCard } from '../components/store-card';
+import { storeAPI } from '../services/api';
+import { Search, SlidersHorizontal, MapPin } from 'lucide-react';
+import { LoadingSpinner } from '../components/ui/loading-spinner';
 
 const StoresPage = () => {
-  const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All Categories");
+  const [sortBy, setSortBy] = useState("rating");
   const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState('name');
-  const [sortOrder, setSortOrder] = useState('asc');
+  const [error, setError] = useState(null);
 
+  // Fetch stores from API
   useEffect(() => {
+    const fetchStores = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await storeAPI.getStores();
+        if (response.success) {
+          setStores(response.data.stores || []);
+        } else {
+          setError('Failed to fetch stores');
+        }
+      } catch (error) {
+        console.error('Error fetching stores:', error);
+        setError('Failed to load stores. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchStores();
   }, []);
 
-  const fetchStores = async () => {
-    try {
-      console.log('Fetching stores...');
-      const response = await api.get('/stores');
-      console.log('Stores API response:', response.data);
-      
-      // Handle the correct API response structure
-      const storesData = response.data.data?.stores || response.data.data || [];
-      console.log('Processed stores data:', storesData);
-      console.log('Store IDs:', storesData.map(store => ({ id: store.id, name: store.name })));
-      setStores(storesData);
-    } catch (error) {
-      console.error('Error fetching stores:', error);
-      toast.error('Failed to load stores: ' + (error.response?.data?.message || error.message));
-    } finally {
-      setLoading(false);
+  const filteredAndSortedStores = useMemo(() => {
+    let filtered = stores;
+
+    // Filter by search query
+    if (searchQuery) {
+      filtered = filtered.filter(
+        (store) =>
+          store.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          store.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          store.city.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          store.category?.toLowerCase().includes(searchQuery.toLowerCase()),
+      );
     }
-  };
 
-  const handleStoreClick = (storeId) => {
-    navigate(`/store/${storeId}`);
-  };
-
-  const handleSort = (field) => {
-    if (sortBy === field) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortBy(field);
-      setSortOrder('asc');
+    // Filter by category
+    if (selectedCategory !== "All Categories") {
+      filtered = filtered.filter((store) => store.category === selectedCategory);
     }
-  };
 
-  const filteredAndSortedStores = stores
-    .filter(store => 
-      store.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      store.address.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-    .sort((a, b) => {
-      let aValue = a[sortBy];
-      let bValue = b[sortBy];
-      
-      if (sortBy === 'average_rating') {
-        aValue = parseFloat(aValue) || 0;
-        bValue = parseFloat(bValue) || 0;
-      }
-      
-      if (sortOrder === 'asc') {
-        return aValue > bValue ? 1 : -1;
-      } else {
-        return aValue < bValue ? 1 : -1;
+    // Sort stores
+    filtered.sort((a, b) => {
+      switch (sortBy) {
+        case "rating":
+          return b.average_rating - a.average_rating;
+        case "reviews":
+          return b.total_reviews - a.total_reviews;
+        case "name":
+          return a.name.localeCompare(b.name);
+        case "newest":
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        default:
+          return 0;
       }
     });
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner size="lg" />
-      </div>
-    );
-  }
+    return filtered;
+  }, [searchQuery, selectedCategory, sortBy, stores]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-6">Browse Stores</h1>
-          
-          {/* Search and Filter */}
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+    <div className="min-h-screen bg-background">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-foreground mb-2">Discover Local Businesses</h1>
+          <p className="text-muted-foreground">
+            Find and rate businesses in your area. {filteredAndSortedStores.length} stores found.
+          </p>
+        </div>
+
+        {/* Search and Filters */}
+        <div className="mb-8 space-y-4">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search stores by name or address..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search stores, categories, or locations..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10"
               />
             </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleSort('name')}
-                className="flex items-center gap-2"
-              >
-                Name {sortBy === 'name' && (sortOrder === 'asc' ? <SortAsc size={16} /> : <SortDesc size={16} />)}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleSort('average_rating')}
-                className="flex items-center gap-2"
-              >
-                Rating {sortBy === 'average_rating' && (sortOrder === 'asc' ? <SortAsc size={16} /> : <SortDesc size={16} />)}
-              </Button>
+            <Button variant="outline" className="sm:w-auto bg-transparent">
+              <MapPin className="h-4 w-4 mr-2" />
+              Near Me
+            </Button>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+            <div className="flex items-center gap-2">
+              <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Filters:</span>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="All Categories">All Categories</SelectItem>
+                  <SelectItem value="Food & Beverage">Food & Beverage</SelectItem>
+                  <SelectItem value="Electronics">Electronics</SelectItem>
+                  <SelectItem value="Home & Garden">Home & Garden</SelectItem>
+                  <SelectItem value="Health & Fitness">Health & Fitness</SelectItem>
+                  <SelectItem value="Books & Media">Books & Media</SelectItem>
+                  <SelectItem value="Automotive">Automotive</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="rating">Highest Rated</SelectItem>
+                  <SelectItem value="reviews">Most Reviews</SelectItem>
+                  <SelectItem value="name">Name A-Z</SelectItem>
+                  <SelectItem value="newest">Newest</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Store Grid */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {filteredAndSortedStores.length === 0 ? (
+        {/* Loading State */}
+        {loading ? (
           <div className="text-center py-12">
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No stores found</h3>
-            <p className="text-gray-600">Try adjusting your search terms</p>
+            <LoadingSpinner size="lg" className="mx-auto mb-4" />
+            <p className="text-muted-foreground">Loading stores...</p>
+          </div>
+        ) : error ? (
+          <div className="text-center py-12">
+            <div className="max-w-md mx-auto">
+              <Search className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-foreground mb-2">Error Loading Stores</h3>
+              <p className="text-muted-foreground mb-4">{error}</p>
+              <Button onClick={() => window.location.reload()}>Try Again</Button>
+            </div>
+          </div>
+        ) : filteredAndSortedStores.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="max-w-md mx-auto">
+              <Search className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-foreground mb-2">No stores found</h3>
+              <p className="text-muted-foreground">
+                Try adjusting your search terms or filters to find what you're looking for.
+              </p>
+            </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredAndSortedStores.map((store) => {
-              const averageRating = parseFloat(store.average_rating) || 0;
-              
-              return (
-                <Card 
-                  key={store.id} 
-                  className="hover:shadow-lg transition-shadow cursor-pointer group"
-                  onClick={() => handleStoreClick(store.id)}
-                  noPadding
-                >
-                  <div className="p-6">
-                    <div className="flex justify-between items-start mb-4">
-                      <h3 className="text-xl font-semibold text-gray-900 line-clamp-2 group-hover:text-blue-600 transition-colors">
-                        {store.name}
-                      </h3>
-                      <ChevronRight className="h-5 w-5 text-gray-400 group-hover:text-blue-600 transition-colors" />
-                    </div>
-                    
-                    <div className="flex items-center text-gray-600 mb-4">
-                      <MapPin className="h-4 w-4 mr-2 flex-shrink-0" />
-                      <span className="text-sm line-clamp-2">{store.address}</span>
-                    </div>
-
-                    {/* Overall Rating */}
-                    <div className="flex items-center justify-between mb-4">
-                      <span className="text-sm font-medium text-gray-700">Rating:</span>
-                      <div className="flex items-center gap-2">
-                        <StarRating 
-                          value={averageRating} 
-                          readonly 
-                          size="sm"
-                          showValue
-                        />
-                        <span className="text-xs text-gray-500">
-                          ({store.total_reviews || 0} reviews)
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Call to action */}
-                    <div className="text-center">
-                      <span className="text-sm text-blue-600 font-medium group-hover:text-blue-700">
-                        Click to view details & rate →
-                      </span>
-                    </div>
-                  </div>
-                </Card>
-              );
-            })}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {filteredAndSortedStores.map((store) => (
+              <StoreCard key={store.id} store={store} />
+            ))}
           </div>
         )}
       </div>
     </div>
   );
 };
-
 export default StoresPage;

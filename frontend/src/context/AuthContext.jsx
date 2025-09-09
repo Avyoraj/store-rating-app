@@ -1,21 +1,20 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import api from '../services/api';
-import toast from 'react-hot-toast';
+import { toast } from '../components/ui/use-toast';
 
 const AuthContext = createContext();
 
-export const useAuth = () => {
+export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) {
+  if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
-};
+}
 
-export const AuthProvider = ({ children }) => {
+export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   // Initialize auth state on mount
   useEffect(() => {
@@ -27,7 +26,6 @@ export const AuthProvider = ({ children }) => {
         if (token && savedUser) {
           const userData = JSON.parse(savedUser);
           setUser(userData);
-          setIsAuthenticated(true);
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
@@ -44,7 +42,8 @@ export const AuthProvider = ({ children }) => {
   const login = async (credentials) => {
     try {
       setLoading(true);
-      const response = await api.post('/auth/login', credentials);
+      const { email, password } = credentials;
+      const response = await api.post('/auth/login', { email, password });
       console.log('Login response:', response.data); // Debug log
       
       // Backend returns { success: true, data: { user: {...}, token: "..." } }
@@ -54,14 +53,20 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('user', JSON.stringify(userData));
       
       setUser(userData);
-      setIsAuthenticated(true);
       
-      toast.success('Login successful!');
+      toast({
+        title: "Success",
+        description: "Login successful!",
+      });
       return { success: true, user: userData };
     } catch (error) {
       console.error('Login error:', error);
       const errorMessage = error.response?.data?.error?.message || error.response?.data?.message || 'Login failed';
-      toast.error(errorMessage);
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
       return { 
         success: false, 
         message: errorMessage
@@ -76,12 +81,19 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       await api.post('/auth/register', userData);
       
-      toast.success('Registration successful! Please login.');
+      toast({
+        title: "Success",
+        description: "Registration successful! Please login.",
+      });
       return { success: true };
     } catch (error) {
       console.error('Registration error:', error);
       const errorMessage = error.response?.data?.error?.message || error.response?.data?.message || 'Registration failed';
-      toast.error(errorMessage);
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
       return { 
         success: false, 
         message: errorMessage
@@ -95,14 +107,16 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);
-    setIsAuthenticated(false);
-    toast.success('Logged out successfully');
+    toast({
+      title: "Success",
+      description: "Logged out successfully",
+    });
   };
 
   const value = {
     user,
     loading,
-    isAuthenticated,
+    isAuthenticated: !!user,
     login,
     register,
     logout

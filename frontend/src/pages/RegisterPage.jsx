@@ -1,123 +1,205 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
-import { yupResolver } from '@hookform/resolvers/yup';
-import { UserPlus } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { registerSchema } from '../utils/validationSchemas';
-import { Button, Input, Card, LoadingSpinner } from '../components/UI';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Alert, AlertDescription } from '../components/ui/alert';
+import { LoadingSpinner } from '../components/ui/loading-spinner';
+import { Star, AlertCircle } from 'lucide-react';
 
 const RegisterPage = () => {
-  const { register: registerUser, loading } = useAuth();
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    password: "",
+    address: "",
+  });
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const { register: registerUser } = useAuth();
   const navigate = useNavigate();
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors }
-  } = useForm({
-    resolver: yupResolver(registerSchema)
-  });
+  const handleChange = (e) => {
+    setFormData((prev) => ({
+      ...prev,
+      [e.target.name]: e.target.value,
+    }));
+  };
 
-  const onSubmit = async (data) => {
-    const result = await registerUser(data);
-    if (result.success) {
-      navigate('/login');
+  const validateForm = () => {
+    const { name, email, password, address } = formData;
+
+    if (!name || !email || !password || !address) {
+      return "Please fill in all fields";
+    }
+
+    if (name.length < 20 || name.length > 60) {
+      return "Full name must be between 20 and 60 characters";
+    }
+
+    if (!email.includes("@")) {
+      return "Please enter a valid email address";
+    }
+
+    if (password.length < 8 || password.length > 16) {
+      return "Password must be between 8 and 16 characters";
+    }
+
+    if (!/[A-Z]/.test(password)) {
+      return "Password must contain at least one uppercase letter";
+    }
+
+    if (!/[a-z]/.test(password)) {
+      return "Password must contain at least one lowercase letter";
+    }
+
+    if (!/\d/.test(password)) {
+      return "Password must contain at least one number";
+    }
+
+    if (!/[@$!%*?&]/.test(password)) {
+      return "Password must contain at least one special character (@$!%*?&)";
+    }
+
+    if (address.length > 400) {
+      return "Address must be less than 400 characters";
+    }
+
+    return null;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setIsLoading(true);
+
+    const validationError = validateForm();
+    if (validationError) {
+      setError(validationError);
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const result = await registerUser(formData);
+      if (result.success) {
+        navigate("/login");
+      } else {
+        setError(result.message || "Registration failed. Please try again.");
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
+      setError("Registration failed. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100">
-      {/* Header */}
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <Link to="/" className="text-2xl font-bold text-gray-900">
-              StoreRating
-            </Link>
-            <div className="flex space-x-4">
-              <Link to="/login">
-                <Button variant="outline">Login</Button>
-              </Link>
-              <Link to="/">
-                <Button variant="outline">Back to Home</Button>
-              </Link>
-            </div>
-          </div>
+    <div className="min-h-screen flex items-center justify-center bg-muted/30 px-4 py-8">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <Link to="/" className="inline-flex items-center space-x-2">
+            <Star className="h-8 w-8 text-accent" />
+            <span className="text-2xl font-bold text-foreground">StoreRate</span>
+          </Link>
         </div>
-      </header>
 
-      {/* Registration Form */}
-      <div className="py-12">
-        <div className="max-w-md mx-auto px-4">
-          <Card>
-            <div className="text-center mb-6">
-              <div className="inline-flex p-3 rounded-full bg-green-100 mb-4">
-                <UserPlus className="h-8 w-8 text-green-600" />
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900">Create Account</h2>
-              <p className="text-gray-600 mt-2">Join our community of store reviewers</p>
-            </div>
+        <Card>
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl">Create your account</CardTitle>
+            <CardDescription>Join our community and start rating stores</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {error && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
 
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-              <Input
-                label="Username"
-                {...register('username')}
-                error={errors.username?.message}
-                placeholder="Enter your username (3-20 characters)"
-              />
-
-              <Input
-                label="Email"
-                type="email"
-                {...register('email')}
-                error={errors.email?.message}
-                placeholder="Enter your email address"
-              />
-
-              <Input
-                label="Address"
-                {...register('address')}
-                error={errors.address?.message}
-                placeholder="Enter your address (max 400 characters)"
-              />
-
-              <Input
-                label="Password"
-                type="password"
-                {...register('password')}
-                error={errors.password?.message}
-                placeholder="Password (8-16 chars, 1 uppercase, 1 special char)"
-              />
-
-              <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-md">
-                <p className="font-medium mb-1">Password requirements:</p>
-                <ul className="list-disc list-inside space-y-1">
-                  <li>8-16 characters long</li>
-                  <li>At least one uppercase letter</li>
-                  <li>At least one special character (!@#$%^&*(),.?":{}|&lt;&gt;)</li>
-                </ul>
+              <div className="space-y-2">
+                <Label htmlFor="name">Full Name</Label>
+                <Input
+                  id="name"
+                  name="name"
+                  type="text"
+                  placeholder="Enter your full name (20-60 characters)"
+                  value={formData.name}
+                  onChange={handleChange}
+                  disabled={isLoading}
+                  required
+                />
               </div>
 
-              <Button
-                type="submit"
-                className="w-full"
-                disabled={loading}
-              >
-                {loading ? <LoadingSpinner size="sm" /> : 'Create Account'}
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  placeholder="Enter your email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  disabled={isLoading}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  name="password"
+                  type="password"
+                  placeholder="8-16 chars, upper/lower case, number, special char (@$!%*?&)"
+                  value={formData.password}
+                  onChange={handleChange}
+                  disabled={isLoading}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="address">Address</Label>
+                <Input
+                  id="address"
+                  name="address"
+                  type="text"
+                  placeholder="Enter your address"
+                  value={formData.address}
+                  onChange={handleChange}
+                  disabled={isLoading}
+                  required
+                />
+              </div>
+
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <LoadingSpinner size="sm" className="mr-2" />
+                    Creating account...
+                  </>
+                ) : (
+                  "Create Account"
+                )}
               </Button>
             </form>
 
             <div className="mt-6 text-center">
-              <p className="text-gray-600">
-                Already have an account?{' '}
-                <Link to="/login" className="text-blue-600 hover:text-blue-800 font-medium">
+              <p className="text-sm text-muted-foreground">
+                Already have an account?{" "}
+                <Link to="/login" className="text-accent hover:underline font-medium">
                   Sign in
                 </Link>
               </p>
             </div>
-          </Card>
-        </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

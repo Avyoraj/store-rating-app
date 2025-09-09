@@ -1,108 +1,138 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
-import { yupResolver } from '@hookform/resolvers/yup';
-import { LogIn } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { loginSchema } from '../utils/validationSchemas';
-import { Button, Input, Card, LoadingSpinner } from '../components/UI';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Alert, AlertDescription } from '../components/ui/alert';
+import { LoadingSpinner } from '../components/ui/loading-spinner';
+import { Star, AlertCircle } from 'lucide-react';
 
 const LoginPage = () => {
-  const { login, loading } = useAuth();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const { login } = useAuth();
   const navigate = useNavigate();
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors }
-  } = useForm({
-    resolver: yupResolver(loginSchema)
-  });
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setIsLoading(true);
 
-  const onSubmit = async (data) => {
-    const result = await login(data);
-    if (result.success) {
-      // Redirect based on user role
-      switch (result.user.role) {
-        case 'admin':
-          navigate('/admin/dashboard');
-          break;
-        case 'owner':
-          navigate('/store/dashboard');
-          break;
-        default:
-          navigate('/stores');
+    // Basic validation
+    if (!email || !password) {
+      setError("Please fill in all fields");
+      setIsLoading(false);
+      return;
+    }
+
+    if (!email.includes("@")) {
+      setError("Please enter a valid email address");
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const result = await login({ email, password });
+      if (result.success) {
+        // Redirect based on user role
+        switch (result.user.role) {
+          case 'admin':
+            navigate('/admin/dashboard');
+            break;
+          case 'owner':
+            navigate('/store/dashboard');
+            break;
+          default:
+            navigate('/stores');
+        }
+      } else {
+        setError(result.message || "Invalid email or password. Please try again.");
       }
-    } else {
-      // Error is already shown via toast in AuthContext
-      console.error('Login failed:', result.message);
+    } catch (error) {
+      console.error('Login error:', error);
+      setError("Invalid email or password. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      {/* Header */}
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <Link to="/" className="text-2xl font-bold text-gray-900">
-              StoreRating
-            </Link>
-            <Link to="/">
-              <Button variant="outline">Back to Home</Button>
-            </Link>
-          </div>
+    <div className="min-h-screen flex items-center justify-center bg-muted/30 px-4">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <Link to="/" className="inline-flex items-center space-x-2">
+            <Star className="h-8 w-8 text-accent" />
+            <span className="text-2xl font-bold text-foreground">StoreRate</span>
+          </Link>
         </div>
-      </header>
 
-      {/* Login Form */}
-      <div className="py-12">
-        <div className="max-w-md mx-auto px-4">
-          <Card>
-            <div className="text-center mb-6">
-              <div className="inline-flex p-3 rounded-full bg-blue-100 mb-4">
-                <LogIn className="h-8 w-8 text-blue-600" />
+        <Card>
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl">Welcome back</CardTitle>
+            <CardDescription>Sign in to your account to continue</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {error && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="Enter your email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={isLoading}
+                  required
+                />
               </div>
-              <h2 className="text-2xl font-bold text-gray-900">Welcome Back</h2>
-              <p className="text-gray-600 mt-2">Sign in to your account</p>
-            </div>
 
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-              <Input
-                label="Email"
-                type="email"
-                {...register('email')}
-                error={errors.email?.message}
-                placeholder="Enter your email address"
-              />
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={isLoading}
+                  required
+                />
+              </div>
 
-              <Input
-                label="Password"
-                type="password"
-                {...register('password')}
-                error={errors.password?.message}
-                placeholder="Enter your password"
-              />
-
-              <Button
-                type="submit"
-                className="w-full"
-                disabled={loading}
-              >
-                {loading ? <LoadingSpinner size="sm" /> : 'Sign In'}
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <LoadingSpinner size="sm" className="mr-2" />
+                    Signing in...
+                  </>
+                ) : (
+                  "Sign In"
+                )}
               </Button>
             </form>
 
             <div className="mt-6 text-center">
-              <p className="text-gray-600">
-                Don't have an account?{' '}
-                <Link to="/register" className="text-blue-600 hover:text-blue-800 font-medium">
-                  Create an account
+              <p className="text-sm text-muted-foreground">
+                {"Don't have an account? "}
+                <Link to="/register" className="text-accent hover:underline font-medium">
+                  Sign up
                 </Link>
               </p>
             </div>
-          </Card>
-        </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

@@ -106,7 +106,7 @@ export const Select = ({
 export const Card = ({ children, className = '', noPadding = false, ...props }) => {
   const paddingClass = noPadding ? '' : 'p-6';
   return (
-    <div className={`bg-white rounded-lg shadow-md ${paddingClass} ${className}`} {...props}>
+    <div className={`bg-card rounded-lg shadow-md ${paddingClass} ${className}`} {...props}>
       {children}
     </div>
   );
@@ -132,7 +132,7 @@ export const Modal = ({ isOpen, onClose, title, children }) => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="fixed inset-0 bg-black bg-opacity-50" onClick={onClose}></div>
-      <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 z-10">
+      <div className="bg-card rounded-lg p-6 max-w-md w-full mx-4 z-10">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold">{title}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">

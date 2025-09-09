@@ -1,354 +1,233 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
-import api from '../services/api';
-import { Button, Card, LoadingSpinner } from '../components/UI';
-import { useForm } from 'react-hook-form';
-import { yupResolver } from '@hookform/resolvers/yup';
-import * as yup from 'yup';
-import toast from 'react-hot-toast';
-
-// Store edit validation schema
-const storeEditSchema = yup.object({
-  name: yup
-    .string()
-    .min(3, 'Store name must be at least 3 characters')
-    .max(100, 'Store name must be at most 100 characters')
-    .required('Store name is required'),
-  email: yup
-    .string()
-    .email('Invalid email format')
-    .required('Email is required'),
-  address: yup
-    .string()
-    .max(400, 'Address must be at most 400 characters')
-    .required('Address is required'),
-  city: yup
-    .string()
-    .max(50, 'City must be at most 50 characters')
-    .required('City is required'),
-  state: yup
-    .string()
-    .max(50, 'State must be at most 50 characters')
-    .required('State is required'),
-  zip_code: yup
-    .string()
-    .max(10, 'ZIP code must be at most 10 characters')
-    .required('ZIP code is required'),
-  phone: yup
-    .string()
-    .max(20, 'Phone must be at most 20 characters'),
-  website: yup
-    .string()
-    .url('Invalid website URL')
-    .max(255, 'Website URL must be at most 255 characters'),
-  description: yup
-    .string()
-    .max(1000, 'Description must be at most 1000 characters')
-});
+import { Link, useNavigate } from 'react-router-dom';
+import ProtectedRoute from '../components/layout/ProtectedRoute';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Textarea } from '../components/ui/textarea';
+import { Alert, AlertDescription } from '../components/ui/alert';
+import { LoadingSpinner } from '../components/ui/loading-spinner';
+import { Store, AlertCircle, CheckCircle, ArrowLeft } from 'lucide-react';
+import { storeAPI } from '../services/api';
 
 const StoreEditPage = () => {
-  const { user } = useAuth();
   const navigate = useNavigate();
+  const [formData, setFormData] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [storeInfo, setStoreInfo] = useState(null);
-  const [error, setError] = useState(null);
-
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-    reset
-  } = useForm({
-    resolver: yupResolver(storeEditSchema)
-  });
 
   useEffect(() => {
-    const fetchStoreInfo = async () => {
+    // Fetch the current user's store profile
+    const fetchStore = async () => {
       try {
         setLoading(true);
-        setError(null);
-
-        const response = await api.get('/store/profile');
-        const store = response.data.data;
-        setStoreInfo(store);
-        
-        // Populate form with current store data
-        reset({
-          name: store.name || '',
-          email: store.email || '',
-          address: store.address || '',
-          city: store.city || '',
-          state: store.state || '',
-          zip_code: store.zip_code || '',
-          phone: store.phone || '',
-          website: store.website || '',
-          description: store.description || ''
-        });
-
-      } catch (error) {
-        console.error('Error fetching store info:', error);
-        setError(error.response?.data?.error?.message || 'Failed to load store information');
-        toast.error('Failed to load store information');
+        const response = await storeAPI.getStore('me');
+        setFormData({ ...response.data });
+      } catch {
+        setError("Failed to load store data.");
       } finally {
         setLoading(false);
       }
     };
+    fetchStore();
+  }, []);
 
-    const loadStoreInfo = async () => {
-      if (user && user.role === 'owner') {
-        await fetchStoreInfo();
-      } else if (user && user.role !== 'owner') {
-        setError('Access denied. Only store owners can edit store information.');
-        setLoading(false);
-      }
-    };
-    
-    loadStoreInfo();
-  }, [user, reset]);
+  const handleChange = (e) => {
+    setFormData((prev) => ({
+      ...prev,
+      [e.target.name]: e.target.value,
+    }));
+  };
 
-  const onSubmit = async (data) => {
+  const validateForm = () => {
+    if (!formData) return 'Form not loaded.';
+    const { name, email, address, city, state, zip_code } = formData;
+    if (!name || name.length < 3 || name.length > 100) {
+      return "Store name must be between 3 and 100 characters";
+    }
+    if (!email || !email.includes("@")) {
+      return "Please enter a valid email address";
+    }
+    if (!address || address.length > 400) {
+      return "Address is required and must be less than 400 characters";
+    }
+    if (!city || city.length > 50) {
+      return "City is required and must be less than 50 characters";
+    }
+    if (!state || state.length > 50) {
+      return "State is required and must be less than 50 characters";
+    }
+    if (!zip_code || zip_code.length > 10) {
+      return "ZIP code is required and must be less than 10 characters";
+    }
+    if (formData.phone && formData.phone.length > 20) {
+      return "Phone number must be less than 20 characters";
+    }
+    if (formData.website && formData.website.length > 255) {
+      return "Website URL must be less than 255 characters";
+    }
+    if (formData.description && formData.description.length > 1000) {
+      return "Description must be less than 1000 characters";
+    }
+    return null;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setSuccess(false);
+    const validationError = validateForm();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    setIsSubmitting(true);
     try {
-      setSaving(true);
-
-      await api.put('/store/profile', data);
-      toast.success('Store information updated successfully!');
-      navigate('/store/dashboard');
-      
-    } catch (error) {
-      console.error('Error updating store:', error);
-      toast.error('Failed to update store information');
+      const response = await storeAPI.updateStore('me', formData);
+      if (response.success) {
+        setSuccess(true);
+        setTimeout(() => setSuccess(false), 3000);
+        navigate('/store/dashboard');
+      } else {
+        setError(response.error?.message || 'Failed to update store profile.');
+      }
+    } catch {
+      setError("Failed to update store profile. Please try again.");
     } finally {
-      setSaving(false);
+      setIsSubmitting(false);
     }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <LoadingSpinner size="lg" />
-          <p className="mt-4 text-gray-600">Loading store information...</p>
-        </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <LoadingSpinner size="lg" />
       </div>
     );
   }
 
-  if (error) {
+  if (!formData) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Access Error</h1>
-          <p className="text-gray-600 mb-6">{error}</p>
-          <Button onClick={() => navigate('/store/dashboard')}>
-            Back to Dashboard
-          </Button>
+      <ProtectedRoute requiredRole="owner">
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <Store className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <h2 className="text-xl font-semibold text-foreground mb-2">No Store Found</h2>
+            <p className="text-muted-foreground mb-4">You don't have a store associated with your account.</p>
+            <Button>Contact Support</Button>
+          </div>
         </div>
-      </div>
+      </ProtectedRoute>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <Button
-                variant="outline"
-                onClick={() => navigate('/store/dashboard')}
-                className="mb-4 flex items-center gap-2"
-              >
-                <ArrowLeft size={16} />
+    <ProtectedRoute requiredRole="owner">
+      <div className="min-h-screen bg-background">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Header */}
+          <div className="mb-8">
+            <Link to="/store/dashboard">
+              <Button variant="ghost" className="text-muted-foreground hover:text-foreground mb-4">
+                <ArrowLeft className="mr-2 h-4 w-4" />
                 Back to Dashboard
               </Button>
-              <h1 className="text-3xl font-bold text-gray-900">Edit Store Information</h1>
-              <p className="mt-1 text-gray-600">Update your store details and contact information</p>
+            </Link>
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-accent/10 rounded-lg">
+                <Store className="h-6 w-6 text-accent" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-foreground">Edit Store Profile</h1>
+                <p className="text-muted-foreground">Update your store information and settings</p>
+              </div>
             </div>
           </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Store Information</CardTitle>
+              <CardDescription>
+                Keep your store information up to date to help customers find and contact you.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {error && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
+
+                {success && (
+                  <Alert className="border-green-200 bg-green-50 text-green-800">
+                    <CheckCircle className="h-4 w-4" />
+                    <AlertDescription>Store profile updated successfully!</AlertDescription>
+                  </Alert>
+                )}
+
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Store Name *</Label>
+                    <Input name="name" value={formData.name} onChange={handleChange} required minLength={3} maxLength={100} />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email *</Label>
+                    <Input name="email" value={formData.email} onChange={handleChange} required type="email" />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="address">Address *</Label>
+                    <Textarea name="address" value={formData.address} onChange={handleChange} required maxLength={400} />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="city">City *</Label>
+                    <Input name="city" value={formData.city} onChange={handleChange} required maxLength={50} />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="state">State *</Label>
+                    <Input name="state" value={formData.state} onChange={handleChange} required maxLength={50} />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="zip_code">ZIP Code *</Label>
+                    <Input name="zip_code" value={formData.zip_code} onChange={handleChange} required maxLength={10} />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Phone</Label>
+                    <Input name="phone" value={formData.phone || ''} onChange={handleChange} maxLength={20} />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="website">Website</Label>
+                    <Input name="website" value={formData.website || ''} onChange={handleChange} maxLength={255} />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea name="description" value={formData.description || ''} onChange={handleChange} maxLength={1000} />
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4">
+                  <Button type="submit" disabled={isSubmitting} className="min-w-[120px]">
+                    {isSubmitting ? <LoadingSpinner size="sm" /> : 'Save Changes'}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
         </div>
       </div>
-
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Card>
-          <div className="p-6">
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-              {/* Store Name */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Store Name *
-                </label>
-                <input
-                  {...register('name')}
-                  type="text"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter store name"
-                />
-                {errors.name && (
-                  <p className="text-red-600 text-sm mt-1">{errors.name.message}</p>
-                )}
-              </div>
-
-              {/* Email */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Email *
-                </label>
-                <input
-                  {...register('email')}
-                  type="email"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter store email"
-                />
-                {errors.email && (
-                  <p className="text-red-600 text-sm mt-1">{errors.email.message}</p>
-                )}
-              </div>
-
-              {/* Address */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Street Address *
-                </label>
-                <textarea
-                  {...register('address')}
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter store address"
-                />
-                {errors.address && (
-                  <p className="text-red-600 text-sm mt-1">{errors.address.message}</p>
-                )}
-              </div>
-
-              {/* City, State, ZIP */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    City *
-                  </label>
-                  <input
-                    {...register('city')}
-                    type="text"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="City"
-                  />
-                  {errors.city && (
-                    <p className="text-red-600 text-sm mt-1">{errors.city.message}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    State *
-                  </label>
-                  <input
-                    {...register('state')}
-                    type="text"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="State"
-                  />
-                  {errors.state && (
-                    <p className="text-red-600 text-sm mt-1">{errors.state.message}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    ZIP Code *
-                  </label>
-                  <input
-                    {...register('zip_code')}
-                    type="text"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="ZIP Code"
-                  />
-                  {errors.zip_code && (
-                    <p className="text-red-600 text-sm mt-1">{errors.zip_code.message}</p>
-                  )}
-                </div>
-              </div>
-
-              {/* Phone */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Phone Number
-                </label>
-                <input
-                  {...register('phone')}
-                  type="tel"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter phone number"
-                />
-                {errors.phone && (
-                  <p className="text-red-600 text-sm mt-1">{errors.phone.message}</p>
-                )}
-              </div>
-
-              {/* Website */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Website
-                </label>
-                <input
-                  {...register('website')}
-                  type="url"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="https://www.example.com"
-                />
-                {errors.website && (
-                  <p className="text-red-600 text-sm mt-1">{errors.website.message}</p>
-                )}
-              </div>
-
-              {/* Description */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Store Description
-                </label>
-                <textarea
-                  {...register('description')}
-                  rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Describe your store, products, and services..."
-                />
-                {errors.description && (
-                  <p className="text-red-600 text-sm mt-1">{errors.description.message}</p>
-                )}
-              </div>
-
-              {/* Submit Button */}
-              <div className="flex gap-4">
-                <Button
-                  type="submit"
-                  disabled={saving}
-                  className="flex items-center gap-2"
-                >
-                  {saving ? (
-                    <LoadingSpinner size="sm" />
-                  ) : (
-                    <Save className="h-4 w-4" />
-                  )}
-                  {saving ? 'Saving...' : 'Save Changes'}
-                </Button>
-                
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => navigate('/store/dashboard')}
-                  disabled={saving}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </form>
-          </div>
-        </Card>
-      </div>
-    </div>
+    </ProtectedRoute>
   );
 };
 
